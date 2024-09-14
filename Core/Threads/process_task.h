@@ -10,7 +10,7 @@
 #include "fdcan.h"
 #include "main.h"
 
-void ProcessLogTask(void);
+void ProcessLogTask(void* argument);
 
 extern osMessageQueueId_t dataQueueHandle;
 

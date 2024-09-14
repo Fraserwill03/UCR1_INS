@@ -31,21 +31,21 @@ FDCAN_TxHeaderTypeDef GnssImuHeader = {
   .MessageMarker = 0
 };
 
-// BESTVEL header
-FDCAN_TxHeaderTypeDef BestvelHeader = {
-  .Identifier = UCR_01_GPS_BEST_VEL_FRAME_ID,
-  .IdType = FDCAN_STANDARD_ID,
-  .TxFrameType = FDCAN_DATA_FRAME,
-  .DataLength = FDCAN_DLC_BYTES_64,
-  .ErrorStateIndicator = FDCAN_ESI_PASSIVE,
-  .BitRateSwitch = FDCAN_BRS_ON,
-  .FDFormat = FDCAN_FD_CAN,
-  .TxEventFifoControl = FDCAN_NO_TX_EVENTS,
-  .MessageMarker = 0
-};
-    
+// TODO: BESTVEL header
+//FDCAN_TxHeaderTypeDef BestvelHeader = {
+//  .Identifier = UCR_01_GPS_BEST_VEL_FRAME_ID,
+//  .IdType = FDCAN_STANDARD_ID,
+//  .TxFrameType = FDCAN_DATA_FRAME,
+//  .DataLength = FDCAN_DLC_BYTES_64,
+//  .ErrorStateIndicator = FDCAN_ESI_PASSIVE,
+//  .BitRateSwitch = FDCAN_BRS_ON,
+//  .FDFormat = FDCAN_FD_CAN,
+//  .TxEventFifoControl = FDCAN_NO_TX_EVENTS,
+//  .MessageMarker = 0
+//};
+//
 
-void ProcessLogTask(void) {
+void ProcessLogTask(void * argument) {
   static uint8_t received_data[MAX_RX_BUF];
 
   while(1) {
