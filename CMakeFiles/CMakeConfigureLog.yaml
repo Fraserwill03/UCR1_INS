@@ -127,3 +127,15 @@ events:
         F:/UCR/UCR1-GNSS/CMakeFiles/3.28.1/CompilerIdCXX/CMakeCXXCompilerId.o
       
 ...
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-3.28/Modules/CMakeDetermineSystem.cmake:228 (message)"
+      - "CMakeLists.txt:31 (enable_language)"
+    message: |
+      The target system is: Generic -  - arm
+      The host system is: Windows - 10.0.22631 - 
+...

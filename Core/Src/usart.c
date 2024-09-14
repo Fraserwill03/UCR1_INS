@@ -42,7 +42,6 @@ static sync_state_t sync_state = SYNC_BYTE_1_STATE;
 static uint8_t message_length = 0;
 static uint16_t message_id = 0;
 
-extern osMessageQueueId_t dataQueueHandle;
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart1;
@@ -298,7 +297,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
           break;
 
         case SYNC_BYTE_2_STATE:
-          if (sync_buf[0] == 0xBB) {
+          if (sync_buf[0] == 0x44) {
             sync_state = SYNC_BYTE_3_STATE;
           } else {
             sync_state = SYNC_BYTE_1_STATE;
@@ -306,7 +305,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
           break;
 
         case SYNC_BYTE_3_STATE:
-          if (sync_buf[0] == 0xCC) {
+          if (sync_buf[0] == 0x12 || sync_buf[0] == 0x13) {
             sync_state = LENGTH_STATE;
           } else {
             sync_state = SYNC_BYTE_1_STATE;
