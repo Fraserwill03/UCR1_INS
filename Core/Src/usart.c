@@ -19,14 +19,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "usart.h"
+#include "cmsis_os.h"
 #include <stdint.h>
 
 /* USER CODE BEGIN 0 */
 #define SYNC_BYTE_1 0xAA
 #define SYNC_BYTE_2 0x44
 #define SYNC_BYTE_3 0x13
-#define SHORT_HEADER_REMAINDER 6
-#define LONG_HEADER_REMAINDER 22
 
 typedef enum  {
     SYNC_BYTE_1_STATE,
@@ -42,6 +41,8 @@ volatile uint8_t message_buf[MAX_RX_BUF];
 static sync_state_t sync_state = SYNC_BYTE_1_STATE;
 static uint8_t message_length = 0;
 static uint16_t message_id = 0;
+
+extern osMessageQueueId_t dataQueueHandle;
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart1;
@@ -357,7 +358,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
       BaseType_t xHigherPriorityTaskWoken = pdFALSE;
       
       // Send the buffer to the FreeRTOS queue
-      xQueueSendFromISR(data_queue, message_buf, &xHigherPriorityTaskWoken);
+      // TODO: Error handling
+      osMessageQueuePut(dataQueueHandle, message_buf, &xHigherPriorityTaskWoken, 0);
 
       sync_state = SYNC_BYTE_1_STATE;
       message_length = 0;

@@ -64,6 +64,8 @@ void Error_Handler(void);
 #define BESTVEL_ID 0x0063
 #define BESTVEL_LENGTH 88
 #define CRC_LENGTH 32
+#define SHORT_HEADER_REMAINDER 6
+#define LONG_HEADER_REMAINDER 22
 
 /* USER CODE END Private defines */
 

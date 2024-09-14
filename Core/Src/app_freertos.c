@@ -35,7 +35,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define QUEUE_SIZE 10
+#define QUEUE_ITEM_SIZE MAX_RX_BUF
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,7 +46,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-
+osMessageQueueId_t dataQueueHandle;
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -93,6 +94,13 @@ void MX_FREERTOS_Init(void) {
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  dataQueueHandle = osMessageQueueNew(QUEUE_SIZE, QUEUE_ITEM_SIZE, NULL);
+
+  if (dataQueueHandle == NULL) {
+      // Handle error: Queue creation failed
+      printf("Queue creation failed!\n");
+      while (1);
+  }
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
