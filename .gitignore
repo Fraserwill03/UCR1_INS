@@ -1,5 +1,6 @@
 build.ninja
 .vscode
+.settings/
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
