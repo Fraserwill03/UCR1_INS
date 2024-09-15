@@ -42,11 +42,12 @@ typedef enum {
 } header_type_t;
 
 static uint8_t sync_buf[4];
+static uint8_t received_bytes = 0;
 static uint8_t message_buf[MAX_RX_BUF];
 static sync_state_t sync_state = SYNC_BYTE_1_STATE;
 static uint16_t message_length = 0;
 static header_type_t header_type = SHORT;
-static uint8_t header_remainder = 0;
+static uint8_t header_length = 0;
 
 /* USER CODE END 0 */
 
@@ -297,38 +298,46 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	  switch (sync_state) {
       case SYNC_BYTE_1_STATE:
         if (sync_buf[0] == SYNC_BYTE_1) {
-        sync_state = SYNC_BYTE_2_STATE;
+          message_buf[received_bytes++] = SYNC_BYTE_1;
+          sync_state = SYNC_BYTE_2_STATE;
         }
         HAL_UART_Receive_IT(&huart1, sync_buf, 1);
         break;
 
       case SYNC_BYTE_2_STATE:
         if (sync_buf[0] == SYNC_BYTE_2) {
-        sync_state = SYNC_BYTE_3_STATE;
+          message_buf[received_bytes++] = SYNC_BYTE_2;
+          sync_state = SYNC_BYTE_3_STATE;
         } else {
-        sync_state = SYNC_BYTE_1_STATE;
+          received_bytes = 0;
+          sync_state = SYNC_BYTE_1_STATE;
         }
         HAL_UART_Receive_IT(&huart1, sync_buf, 1);
         break;
 
       case SYNC_BYTE_3_STATE:
         if (sync_buf[0] == SYNC_BYTE_3_LONG) {
+          message_buf[received_bytes++] = SYNC_BYTE_3_LONG;
           sync_state = HEADER_LENGTH_STATE;
           header_type = LONG;
         } else if (sync_buf[0] == SYNC_BYTE_3_SHORT) {
+          message_buf[received_bytes++] = SYNC_BYTE_3_SHORT;
           sync_state = MESSAGE_LENGTH_STATE;
           header_type = SHORT;
-          header_remainder = SHORT_HEADER_REMAINDER; // Short headers have constant length
+          header_length = SHORT_HEADER_LENGTH; // Short headers have constant length
         } else {
+          received_bytes = 0;
           sync_state = SYNC_BYTE_1_STATE;
         }
         HAL_UART_Receive_IT(&huart1, sync_buf, 1);
         break;
 
       case HEADER_LENGTH_STATE:
-        header_remainder = sync_buf[0] - 10; // Subtract amount received up to and including message length
+        header_length = sync_buf[0];
+        message_buf[received_bytes++] = header_length;
         header_type = LONG;
         sync_state = MESSAGE_ID_STATE;
+
         HAL_UART_Receive_IT(&huart1, sync_buf, 2);
         break;
 
@@ -336,27 +345,39 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         switch(header_type) {
           case SHORT:
             message_length = sync_buf[0];
+            message_buf[received_bytes++] = message_length;
             sync_state = MESSAGE_ID_STATE;
+
             HAL_UART_Receive_IT(&huart1, sync_buf, 2);
             break;
           case LONG:
             message_length = (sync_buf[2] << 8) | (uint16_t) sync_buf[3];
+            memcpy(&message_buf[received_bytes], sync_buf, 4);
+            received_bytes += 4;
             sync_state = DMA_STATE;
-            HAL_UART_Receive_DMA(&huart1, &message_buf[2], message_length + header_remainder + CRC_LENGTH);
+
+            HAL_UART_Receive_DMA(
+              &huart1,
+              &message_buf[received_bytes], 
+              message_length + header_length - received_bytes + CRC_LENGTH
+            );
             break;
         }
         break;
 
       case MESSAGE_ID_STATE:
-        // message id will be first two bytes of message_buf
-        message_buf[0] = sync_buf[0];
-        message_buf[1] = sync_buf[1];
+        message_buf[received_bytes++] = sync_buf[0];
+        message_buf[received_bytes++] = sync_buf[1];
 
         // Once sync bytes are received, message id and length are known, use DMA to receive the rest of the message
         switch(header_type) {
           case SHORT:
             sync_state = DMA_STATE;
-            HAL_UART_Receive_DMA(&huart1, &message_buf[2], message_length + header_remainder + CRC_LENGTH);
+            HAL_UART_Receive_DMA(
+              &huart1,
+              &message_buf[received_bytes], 
+              message_length + header_length - received_bytes + CRC_LENGTH
+            );
             break;
           case LONG:
             sync_state = MESSAGE_LENGTH_STATE; // In long headers, message length is after a 2 more bytes, and is 2 bytes long
@@ -370,6 +391,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         osMessageQueuePut(dataQueueHandle, message_buf, 0, 0);
 
         sync_state = SYNC_BYTE_1_STATE;
+        received_bytes = 0;
+        header_length = 0;
         message_length = 0;
 
         HAL_UART_Receive_IT(&huart1, sync_buf, 1);

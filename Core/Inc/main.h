@@ -62,10 +62,8 @@ void Error_Handler(void);
 #define MAX_RX_BUF 128
 #define IMURATEPVAS_ID 0x0519
 #define BESTVEL_ID 0x0063
-#define BESTVEL_LENGTH 88
 #define CRC_LENGTH 32
-#define SHORT_HEADER_REMAINDER 6
-#define LONG_HEADER_REMAINDER 22
+#define SHORT_HEADER_LENGTH 12
 
 /* USER CODE END Private defines */
 

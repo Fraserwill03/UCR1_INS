@@ -10,6 +10,9 @@
 #include "fdcan.h"
 #include "main.h"
 
+
+unsigned long CalculateBlockCRC32( unsigned long ulCount, unsigned char *ucBuffer );
+unsigned long CRC32Value(int i);
 void ProcessLogTask(void* argument);
 
 extern osMessageQueueId_t dataQueueHandle;
