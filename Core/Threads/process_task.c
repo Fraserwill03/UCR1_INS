@@ -9,7 +9,7 @@ osMessageQueueId_t dataQueueHandle;
 
 // GnssPosHeader header
 FDCAN_TxHeaderTypeDef GnssPosHeader = {
-  .Identifier = UCR_01_GNSS_POS_FRAME_ID,
+  .Identifier = UCR_01_INS_GPS_FRAME_ID,
   .IdType = FDCAN_STANDARD_ID,
   .TxFrameType = FDCAN_DATA_FRAME,
   .DataLength = FDCAN_DLC_BYTES_64,
@@ -22,7 +22,7 @@ FDCAN_TxHeaderTypeDef GnssPosHeader = {
 
 // GnssImuHeader header
 FDCAN_TxHeaderTypeDef GnssImuHeader = {
-  .Identifier = UCR_01_GNSS_IMU_FRAME_ID,
+  .Identifier = UCR_01_INS_IMU_FRAME_ID,
   .IdType = FDCAN_STANDARD_ID,
   .TxFrameType = FDCAN_DATA_FRAME,
   .DataLength = FDCAN_DLC_BYTES_64,
@@ -118,17 +118,17 @@ void ProcessLogTask(void * argument) {
   while(1) {
     osStatus_t status = osMessageQueueGet(dataQueueHandle, received_data, NULL, 0);
     if (status == osOK) {
-      uint16_t message_id = (received_data[1] << 8) | received_data[0];
+      uint16_t message_id = (received_data[5] << 8) | received_data[4];
 
       switch(message_id) {
         case IMURATEPVAS_ID:
-          struct ucr_01_gnss_pos_t gnss_pos;
-          struct ucr_01_gnss_imu_t gnss_imu;
+          struct ucr_01_ins_gps_t ins_gps;
+          struct ucr_01_ins_imu_t ins_imu;
 
           uint32_t received_CRC;
           memcpy(&received_CRC, received_data + SHORT_HEADER_LENGTH + received_data[3], sizeof(received_CRC));
 
-          uint32_t calculated_CRC = CalculateBlockCRC32(sizeof(received_data), received_data);
+          uint32_t calculated_CRC = CalculateBlockCRC32(SHORT_HEADER_LENGTH + IMURATEPVAS_LENGTH, received_data);
 
           if(memcmp(&received_CRC, &calculated_CRC, sizeof(received_CRC)) != 0) {
             // CRC mismatch
@@ -137,25 +137,26 @@ void ProcessLogTask(void * argument) {
 
           // Skip header
           uint8_t *ptr = received_data + SHORT_HEADER_LENGTH;
+          // TODO: PARSE THE STATUS
           // All fields are in order so just copy the chunk
-          memcpy(&gnss_pos, ptr, sizeof(gnss_pos));
-          ptr += sizeof(gnss_pos);
+          memcpy(&ins_gps, ptr, sizeof(ins_gps));
+          ptr += sizeof(ins_gps);
 
           // Again, all fields are in order so just copy the chunk
-          memcpy(&gnss_imu, ptr, sizeof(gnss_imu));
-          ptr += sizeof(gnss_imu);
+          memcpy(&ins_imu, ptr, sizeof(ins_imu));
+          ptr += sizeof(ins_imu);
           
-          uint8_t gnss_pos_data[UCR_01_GNSS_POS_LENGTH];
-          uint8_t gnss_imu_data[UCR_01_GNSS_IMU_LENGTH];
+          uint8_t ins_gps_data[UCR_01_INS_GPS_LENGTH];
+          uint8_t ins_imu_data[UCR_01_INS_IMU_LENGTH];
 
-          ucr_01_gnss_pos_pack(gnss_pos_data, &gnss_pos, UCR_01_GNSS_POS_LENGTH);
-          ucr_01_gnss_imu_pack(gnss_imu_data, &gnss_imu, UCR_01_GNSS_IMU_LENGTH);
+          ucr_01_ins_gps_pack(ins_gps_data, &ins_gps, UCR_01_INS_GPS_LENGTH);
+          ucr_01_ins_imu_pack(ins_imu_data, &ins_imu, UCR_01_INS_IMU_LENGTH);
 
-          if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &GnssPosHeader, gnss_pos_data) != HAL_OK){
+          if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &GnssPosHeader, ins_gps_data) != HAL_OK){
             // TODO: Handle error
           }
           
-          if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &GnssImuHeader, gnss_imu_data) != HAL_OK){
+          if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &GnssImuHeader, ins_imu_data) != HAL_OK){
             // TODO: Handle error
           }
           break;

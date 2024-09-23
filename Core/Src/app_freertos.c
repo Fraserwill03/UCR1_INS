@@ -96,6 +96,7 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+  dataQueueHandle = osMessageQueueNew (QUEUE_SIZE, QUEUE_ITEM_SIZE, NULL);
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */

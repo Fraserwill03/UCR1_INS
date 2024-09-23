@@ -355,11 +355,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
             memcpy(&message_buf[received_bytes], sync_buf, 4);
             received_bytes += 4;
             sync_state = DMA_STATE;
-
+            uint16_t receive_length = message_length + header_length - received_bytes + CRC_LENGTH;
             HAL_UART_Receive_DMA(
               &huart1,
               &message_buf[received_bytes], 
-              message_length + header_length - received_bytes + CRC_LENGTH
+              receive_length
             );
             break;
         }
@@ -373,18 +373,19 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         switch(header_type) {
           case SHORT:
             sync_state = DMA_STATE;
+            uint16_t receive_length = message_length + header_length - received_bytes + CRC_LENGTH;
             HAL_UART_Receive_DMA(
               &huart1,
               &message_buf[received_bytes], 
-              message_length + header_length - received_bytes + CRC_LENGTH
-            );
+			  receive_length
+			);
             break;
           case LONG:
             sync_state = MESSAGE_LENGTH_STATE; // In long headers, message length is after a 2 more bytes, and is 2 bytes long
             HAL_UART_Receive_IT(&huart1, sync_buf, 4);
             break;
         }
-        return;
+        break;
       case DMA_STATE:
         // Send the buffer to the FreeRTOS queue
         // TODO: Error handling
