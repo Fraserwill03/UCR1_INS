@@ -137,12 +137,14 @@ void ProcessLogTask(void * argument) {
 
           // Skip header
           uint8_t *ptr = received_data + SHORT_HEADER_LENGTH;
-          // TODO: PARSE THE STATUS
+
           // All fields are in order so just copy the chunk
           memcpy(&ins_gps, ptr, sizeof(ins_gps));
           ptr += sizeof(ins_gps);
 
-          // Again, all fields are in order so just copy the chunk
+          // Copy all in order.
+          // TODO: Validate that status is correct. It is sent as a 4 byte enum, but the enum values are only 0 through 14,
+          // so we should only ever need the first byte...
           memcpy(&ins_imu, ptr, sizeof(ins_imu));
           ptr += sizeof(ins_imu);
           
