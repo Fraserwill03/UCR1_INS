@@ -7,12 +7,12 @@ osMessageQueueId_t dataQueueHandle;
 
 /* CAN Message Headers Start */
 
-// GnssPosHeader header
-FDCAN_TxHeaderTypeDef GnssPosHeader = {
+// InsGpsHeader header
+FDCAN_TxHeaderTypeDef InsGpsHeader = {
   .Identifier = UCR_01_INS_GPS_FRAME_ID,
   .IdType = FDCAN_STANDARD_ID,
   .TxFrameType = FDCAN_DATA_FRAME,
-  .DataLength = FDCAN_DLC_BYTES_64,
+  .DataLength = FDCAN_DLC_BYTES_48,
   .ErrorStateIndicator = FDCAN_ESI_PASSIVE,
   .BitRateSwitch = FDCAN_BRS_ON,
   .FDFormat = FDCAN_FD_CAN,
@@ -114,6 +114,7 @@ unsigned long CalculateBlockCRC32( unsigned long ulCount, unsigned char *ucBuffe
 
 void ProcessLogTask(void * argument) {
   static uint8_t received_data[MAX_RX_BUF];
+  HAL_FDCAN_Start(&hfdcan1);
 
   while(1) {
     osStatus_t status = osMessageQueueGet(dataQueueHandle, received_data, NULL, 0);
@@ -138,15 +139,45 @@ void ProcessLogTask(void * argument) {
           // Skip header
           uint8_t *ptr = received_data + SHORT_HEADER_LENGTH;
 
-          // All fields are in order so just copy the chunk
-          memcpy(&ins_gps, ptr, sizeof(ins_gps));
-          ptr += sizeof(ins_gps);
+          // TODO: Switch to packed structs so I can copy chunk?
+          memcpy(&ins_gps.gnss_week, ptr, sizeof(ins_gps.gnss_week));
+          ptr += sizeof(ins_gps.gnss_week);
 
-          // Copy all in order.
+          memcpy(&ins_gps.gnss_seconds, ptr, sizeof(ins_gps.gnss_seconds));
+          ptr += sizeof(ins_gps.gnss_seconds);
+
+          memcpy(&ins_gps.gnss_lat, ptr, sizeof(ins_gps.gnss_lat));
+		  ptr += sizeof(ins_gps.gnss_lat);
+
+		  memcpy(&ins_gps.gnss_long, ptr, sizeof(ins_gps.gnss_long));
+		  ptr += sizeof(ins_gps.gnss_long);
+
+		  memcpy(&ins_gps.gnss_height, ptr, sizeof(ins_gps.gnss_height));
+		  ptr += sizeof(ins_gps.gnss_height);
+
           // TODO: Validate that status is correct. It is sent as a 4 byte enum, but the enum values are only 0 through 14,
           // so we should only ever need the first byte...
-          memcpy(&ins_imu, ptr, sizeof(ins_imu));
-          ptr += sizeof(ins_imu);
+          memcpy(&ins_imu.north_vel, ptr, sizeof(ins_imu.north_vel));
+          ptr += sizeof(ins_imu.north_vel);
+
+          memcpy(&ins_imu.east_vel, ptr, sizeof(ins_imu.east_vel));
+          ptr += sizeof(ins_imu.east_vel);
+
+		  memcpy(&ins_imu.up_vel, ptr, sizeof(ins_imu.up_vel));
+		  ptr += sizeof(ins_imu.up_vel);
+
+		  memcpy(&ins_imu.roll, ptr, sizeof(ins_imu.roll));
+		  ptr += sizeof(ins_imu.roll);
+
+		  memcpy(&ins_imu.pitch, ptr, sizeof(ins_imu.pitch));
+		  ptr += sizeof(ins_imu.pitch);
+
+		  memcpy(&ins_imu.azimuth, ptr, sizeof(ins_imu.azimuth));
+		  ptr += sizeof(ins_imu.azimuth);
+
+		  memcpy(&ins_imu.status, ptr, sizeof(ins_imu.status));
+		  ptr += sizeof(ins_imu.status);
+
           
           uint8_t ins_gps_data[UCR_01_INS_GPS_LENGTH];
           uint8_t ins_imu_data[UCR_01_INS_IMU_LENGTH];
@@ -154,7 +185,7 @@ void ProcessLogTask(void * argument) {
           ucr_01_ins_gps_pack(ins_gps_data, &ins_gps, UCR_01_INS_GPS_LENGTH);
           ucr_01_ins_imu_pack(ins_imu_data, &ins_imu, UCR_01_INS_IMU_LENGTH);
 
-          if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &GnssPosHeader, ins_gps_data) != HAL_OK){
+          if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &InsGpsHeader, ins_gps_data) != HAL_OK){
             // TODO: Handle error
           }
           
