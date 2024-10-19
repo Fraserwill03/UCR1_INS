@@ -2,6 +2,13 @@
 #include "../vendor_generated/can_tools/ucr_01.h"
 
 #define CRC32_POLYNOMIAL 0xEDB88320L
+#define IMURATEPVAS_ID 1305
+#define IMURATEPVAS_LENGTH 88
+#define BESTPOS_ID 42
+#define BESTPOS_LENGTH 72
+#define BESTGNSSPOS_ID 1429
+#define BESTGNSSPOS_LENGTH 72
+#define BESTVEL_ID 0x0063
 
 osMessageQueueId_t dataQueueHandle;
 
@@ -26,6 +33,18 @@ FDCAN_TxHeaderTypeDef GnssImuHeader = {
   .IdType = FDCAN_STANDARD_ID,
   .TxFrameType = FDCAN_DATA_FRAME,
   .DataLength = FDCAN_DLC_BYTES_64,
+  .ErrorStateIndicator = FDCAN_ESI_PASSIVE,
+  .BitRateSwitch = FDCAN_BRS_ON,
+  .FDFormat = FDCAN_FD_CAN,
+  .TxEventFifoControl = FDCAN_NO_TX_EVENTS,
+  .MessageMarker = 0
+};
+
+FDCAN_TxHeaderTypeDef GnssBestPosHeader = {
+  .Identifier = UCR_01_GNSS_BESTPOS_FRAME_ID,
+  .IdType = FDCAN_STANDARD_ID,
+  .TxFrameType = FDCAN_DATA_FRAME,
+  .DataLength = FDCAN_DLC_BYTES_48,
   .ErrorStateIndicator = FDCAN_ESI_PASSIVE,
   .BitRateSwitch = FDCAN_BRS_ON,
   .FDFormat = FDCAN_FD_CAN,
@@ -115,9 +134,14 @@ unsigned long CalculateBlockCRC32( unsigned long ulCount, unsigned char *ucBuffe
 void ProcessLogTask(void * argument) {
   static uint8_t received_data[MAX_RX_BUF];
   HAL_FDCAN_Start(&hfdcan1);
+  uint32_t received_CRC;
+  uint32_t calculated_CRC;
+  uint32_t header_length;
+  uint8_t *ptr = 0;
 
   while(1) {
     osStatus_t status = osMessageQueueGet(dataQueueHandle, received_data, NULL, 0);
+
     if (status == osOK) {
       uint16_t message_id = (received_data[5] << 8) | received_data[4];
 
@@ -126,10 +150,10 @@ void ProcessLogTask(void * argument) {
           struct ucr_01_ins_gps_t ins_gps;
           struct ucr_01_ins_imu_t ins_imu;
 
-          uint32_t received_CRC;
+
           memcpy(&received_CRC, received_data + SHORT_HEADER_LENGTH + received_data[3], sizeof(received_CRC));
 
-          uint32_t calculated_CRC = CalculateBlockCRC32(SHORT_HEADER_LENGTH + IMURATEPVAS_LENGTH, received_data);
+          calculated_CRC = CalculateBlockCRC32(SHORT_HEADER_LENGTH + IMURATEPVAS_LENGTH, received_data);
 
           if(memcmp(&received_CRC, &calculated_CRC, sizeof(received_CRC)) != 0) {
             // CRC mismatch
@@ -137,7 +161,7 @@ void ProcessLogTask(void * argument) {
           }
 
           // Skip header
-          uint8_t *ptr = received_data + SHORT_HEADER_LENGTH;
+          ptr = received_data + SHORT_HEADER_LENGTH;
 
           // TODO: Switch to packed structs so I can copy chunk?
           memcpy(&ins_gps.gnss_week, ptr, sizeof(ins_gps.gnss_week));
@@ -147,13 +171,13 @@ void ProcessLogTask(void * argument) {
           ptr += sizeof(ins_gps.gnss_seconds);
 
           memcpy(&ins_gps.gnss_lat, ptr, sizeof(ins_gps.gnss_lat));
-		  ptr += sizeof(ins_gps.gnss_lat);
+          ptr += sizeof(ins_gps.gnss_lat);
 
-		  memcpy(&ins_gps.gnss_long, ptr, sizeof(ins_gps.gnss_long));
-		  ptr += sizeof(ins_gps.gnss_long);
+          memcpy(&ins_gps.gnss_long, ptr, sizeof(ins_gps.gnss_long));
+          ptr += sizeof(ins_gps.gnss_long);
 
-		  memcpy(&ins_gps.gnss_height, ptr, sizeof(ins_gps.gnss_height));
-		  ptr += sizeof(ins_gps.gnss_height);
+          memcpy(&ins_gps.gnss_height, ptr, sizeof(ins_gps.gnss_height));
+          ptr += sizeof(ins_gps.gnss_height);
 
           // TODO: Validate that status is correct. It is sent as a 4 byte enum, but the enum values are only 0 through 14,
           // so we should only ever need the first byte...
@@ -163,20 +187,20 @@ void ProcessLogTask(void * argument) {
           memcpy(&ins_imu.east_vel, ptr, sizeof(ins_imu.east_vel));
           ptr += sizeof(ins_imu.east_vel);
 
-		  memcpy(&ins_imu.up_vel, ptr, sizeof(ins_imu.up_vel));
-		  ptr += sizeof(ins_imu.up_vel);
+          memcpy(&ins_imu.up_vel, ptr, sizeof(ins_imu.up_vel));
+          ptr += sizeof(ins_imu.up_vel);
 
-		  memcpy(&ins_imu.roll, ptr, sizeof(ins_imu.roll));
-		  ptr += sizeof(ins_imu.roll);
+          memcpy(&ins_imu.roll, ptr, sizeof(ins_imu.roll));
+          ptr += sizeof(ins_imu.roll);
 
-		  memcpy(&ins_imu.pitch, ptr, sizeof(ins_imu.pitch));
-		  ptr += sizeof(ins_imu.pitch);
+          memcpy(&ins_imu.pitch, ptr, sizeof(ins_imu.pitch));
+          ptr += sizeof(ins_imu.pitch);
 
-		  memcpy(&ins_imu.azimuth, ptr, sizeof(ins_imu.azimuth));
-		  ptr += sizeof(ins_imu.azimuth);
+          memcpy(&ins_imu.azimuth, ptr, sizeof(ins_imu.azimuth));
+          ptr += sizeof(ins_imu.azimuth);
 
-		  memcpy(&ins_imu.status, ptr, sizeof(ins_imu.status));
-		  ptr += sizeof(ins_imu.status);
+          memcpy(&ins_imu.status, ptr, sizeof(ins_imu.status));
+          ptr += sizeof(ins_imu.status);
 
           
           uint8_t ins_gps_data[UCR_01_INS_GPS_LENGTH];
@@ -193,8 +217,58 @@ void ProcessLogTask(void * argument) {
             // TODO: Handle error
           }
           break;
-        case BESTVEL_ID:
-          // TODO: Implement bestvel parsing
+        case BESTGNSSPOS_ID:
+		  struct ucr_01_gnss_bestpos_t gnss_bestpos;
+
+          header_length = received_data[3];
+          memcpy(&received_CRC, received_data + header_length + BESTGNSSPOS_LENGTH, sizeof(received_CRC));
+
+          calculated_CRC = CalculateBlockCRC32(header_length + BESTGNSSPOS_LENGTH, received_data);
+
+          if(memcmp(&received_CRC, &calculated_CRC, sizeof(received_CRC)) != 0) {
+            // CRC mismatch
+            return;
+          }
+
+          // This log only has gnss_week and ms in header
+          memcpy(&gnss_bestpos.gnss_week, (received_data + 14), sizeof(gnss_bestpos.gnss_week));
+          memcpy(&gnss_bestpos.gnss_ms, (received_data + 16), sizeof(gnss_bestpos.gnss_week));
+
+          // Skip header
+          ptr = received_data + header_length;
+
+          // Copy remaining data
+          memcpy(&gnss_bestpos.sol_stat, ptr, sizeof(gnss_bestpos.sol_stat));
+          ptr += sizeof(gnss_bestpos.sol_stat);
+
+          memcpy(&gnss_bestpos.pos_type, ptr, sizeof(gnss_bestpos.pos_type));
+          ptr += sizeof(gnss_bestpos.pos_type);
+
+          memcpy(&gnss_bestpos.lat, ptr, sizeof(gnss_bestpos.lat));
+          ptr += sizeof(gnss_bestpos.lat);
+
+          memcpy(&gnss_bestpos.lng, ptr, sizeof(gnss_bestpos.lng));
+          ptr += sizeof(gnss_bestpos.lng);
+
+          memcpy(&gnss_bestpos.hgt, ptr, sizeof(gnss_bestpos.hgt));
+          ptr += sizeof(gnss_bestpos.hgt);
+
+          memcpy(&gnss_bestpos.lat_std_dev, ptr, sizeof(gnss_bestpos.lat_std_dev));
+          ptr += sizeof(gnss_bestpos.lat_std_dev);
+
+          memcpy(&gnss_bestpos.long_std_dev, ptr, sizeof(gnss_bestpos.long_std_dev));
+          ptr += sizeof(gnss_bestpos.long_std_dev);
+
+          memcpy(&gnss_bestpos.height_std_dev, ptr, sizeof(gnss_bestpos.height_std_dev));
+          ptr += sizeof(gnss_bestpos.height_std_dev);
+
+          uint8_t gnss_bestpos_data[UCR_01_GNSS_BESTPOS_LENGTH];
+          ucr_01_gnss_bestpos_pack(gnss_bestpos_data, &gnss_bestpos, UCR_01_GNSS_BESTPOS_LENGTH);
+
+          if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &GnssBestPosHeader, gnss_bestpos_data) != HAL_OK){
+            // TODO: Handle error
+          }
+          
           break;
         default:
           // Unknown message

@@ -351,7 +351,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
             HAL_UART_Receive_IT(&huart1, sync_buf, 2);
             break;
           case LONG:
-            message_length = (sync_buf[2] << 8) | (uint16_t) sync_buf[3];
+            message_length = (uint16_t) sync_buf[2];
             memcpy(&message_buf[received_bytes], sync_buf, 4);
             received_bytes += 4;
             sync_state = DMA_STATE;
