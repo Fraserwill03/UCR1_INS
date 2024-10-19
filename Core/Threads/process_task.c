@@ -253,6 +253,8 @@ void ProcessLogTask(void * argument) {
           memcpy(&gnss_bestpos.hgt, ptr, sizeof(gnss_bestpos.hgt));
           ptr += sizeof(gnss_bestpos.hgt);
 
+          ptr += 8;
+
           memcpy(&gnss_bestpos.lat_std_dev, ptr, sizeof(gnss_bestpos.lat_std_dev));
           ptr += sizeof(gnss_bestpos.lat_std_dev);
 
