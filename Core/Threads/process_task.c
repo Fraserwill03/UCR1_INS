@@ -1,14 +1,38 @@
 #include "process_task.h"
 #include "../vendor_generated/can_tools/ucr_01.h"
 
-#define CRC32_POLYNOMIAL 0xEDB88320L
+
+/**
+ * Message IDs and lengths for UCR-01
+ * 
+ * Lengths should not include the header length or CRC length
+ * -----------------------------------------------------------
+ */
 #define IMURATEPVAS_ID 1305
 #define IMURATEPVAS_LENGTH 88
+#define INSPVAS_ID 508
+#define INSPVAS_LENGTH 88
 #define BESTPOS_ID 42
 #define BESTPOS_LENGTH 72
 #define BESTGNSSPOS_ID 1429
 #define BESTGNSSPOS_LENGTH 72
-#define BESTVEL_ID 0x0063
+#define RAWIMUS_ID 325
+#define RAWIMUS_LENGTH 40
+
+/**
+ * PRIVATE DEFINITIONS
+ * 
+ * -----------------------------------------------------------
+ */
+#define CRC32_POLYNOMIAL 0xEDB88320L
+#define IMU_STATUS_MASK_ERROR_ALL 0x00000001
+
+
+/**
+ * PRIVATE VARIABLES
+ * 
+ * -----------------------------------------------------------
+ */
 
 osMessageQueueId_t dataQueueHandle;
 
@@ -52,19 +76,22 @@ FDCAN_TxHeaderTypeDef GnssBestPosHeader = {
   .MessageMarker = 0
 };
 
-// TODO: BESTVEL header
-//FDCAN_TxHeaderTypeDef BestvelHeader = {
-//  .Identifier = UCR_01_GPS_BEST_VEL_FRAME_ID,
-//  .IdType = FDCAN_STANDARD_ID,
-//  .TxFrameType = FDCAN_DATA_FRAME,
-//  .DataLength = FDCAN_DLC_BYTES_64,
-//  .ErrorStateIndicator = FDCAN_ESI_PASSIVE,
-//  .BitRateSwitch = FDCAN_BRS_ON,
-//  .FDFormat = FDCAN_FD_CAN,
-//  .TxEventFifoControl = FDCAN_NO_TX_EVENTS,
-//  .MessageMarker = 0
-//};
-//
+FDCAN_TxHeaderTypeDef RawImuHeader = {
+  .Identifier = UCR_01_RAWIMU_FRAME_ID,
+  .IdType = FDCAN_STANDARD_ID,
+  .TxFrameType = FDCAN_DATA_FRAME,
+  .DataLength = FDCAN_DLC_BYTES_48,
+  .ErrorStateIndicator = FDCAN_ESI_PASSIVE,
+  .BitRateSwitch = FDCAN_BRS_ON,
+  .FDFormat = FDCAN_FD_CAN,
+  .TxEventFifoControl = FDCAN_NO_TX_EVENTS,
+  .MessageMarker = 0
+};
+/**
+ * PRIVATE FUNCTIONS
+ * 
+ * -----------------------------------------------------------
+ */
 
 /* --------------------------------------------------------------------------
 
@@ -131,6 +158,20 @@ unsigned long CalculateBlockCRC32( unsigned long ulCount, unsigned char *ucBuffe
 }
 
 
+/**
+ * PUBLIC FUNCTIONS
+ * 
+ * -----------------------------------------------------------
+ */
+
+//static float gyro_x;
+//static float gyro_y;
+//static float gyro_z;
+//
+//static float accel_x;
+//static float accel_y;
+//static float accel_z;
+
 void ProcessLogTask(void * argument) {
   static uint8_t received_data[MAX_RX_BUF];
   HAL_FDCAN_Start(&hfdcan1);
@@ -146,11 +187,13 @@ void ProcessLogTask(void * argument) {
       uint16_t message_id = (received_data[5] << 8) | received_data[4];
 
       switch(message_id) {
+        // These are sync and async version of same logs, so same parsing
         case IMURATEPVAS_ID:
+        case INSPVAS_ID:
           struct ucr_01_ins_gps_t ins_gps;
           struct ucr_01_ins_imu_t ins_imu;
 
-
+          memset(&received_CRC, 0, sizeof(received_CRC));
           memcpy(&received_CRC, received_data + SHORT_HEADER_LENGTH + received_data[3], sizeof(received_CRC));
 
           calculated_CRC = CalculateBlockCRC32(SHORT_HEADER_LENGTH + IMURATEPVAS_LENGTH, received_data);
@@ -163,7 +206,7 @@ void ProcessLogTask(void * argument) {
           // Skip header
           ptr = received_data + SHORT_HEADER_LENGTH;
 
-          // TODO: Switch to packed structs so I can copy chunk?
+          // TODO: Figure out if cantools can generate packed structs so we can copy chunks
           memcpy(&ins_gps.gnss_week, ptr, sizeof(ins_gps.gnss_week));
           ptr += sizeof(ins_gps.gnss_week);
 
@@ -179,8 +222,6 @@ void ProcessLogTask(void * argument) {
           memcpy(&ins_gps.gnss_height, ptr, sizeof(ins_gps.gnss_height));
           ptr += sizeof(ins_gps.gnss_height);
 
-          // TODO: Validate that status is correct. It is sent as a 4 byte enum, but the enum values are only 0 through 14,
-          // so we should only ever need the first byte...
           memcpy(&ins_imu.north_vel, ptr, sizeof(ins_imu.north_vel));
           ptr += sizeof(ins_imu.north_vel);
 
@@ -218,8 +259,9 @@ void ProcessLogTask(void * argument) {
           }
           break;
         case BESTGNSSPOS_ID:
-		  struct ucr_01_gnss_bestpos_t gnss_bestpos;
+          struct ucr_01_gnss_bestpos_t gnss_bestpos;
 
+          memset(&received_CRC, 0, sizeof(received_CRC));
           header_length = received_data[3];
           memcpy(&received_CRC, received_data + header_length + BESTGNSSPOS_LENGTH, sizeof(received_CRC));
 
@@ -252,7 +294,8 @@ void ProcessLogTask(void * argument) {
 
           memcpy(&gnss_bestpos.hgt, ptr, sizeof(gnss_bestpos.hgt));
           ptr += sizeof(gnss_bestpos.hgt);
-
+          
+          // Skip Undulation and Datum ID
           ptr += 8;
 
           memcpy(&gnss_bestpos.lat_std_dev, ptr, sizeof(gnss_bestpos.lat_std_dev));
@@ -271,6 +314,79 @@ void ProcessLogTask(void * argument) {
             // TODO: Handle error
           }
           
+          break;
+        case RAWIMUS_ID:
+		  struct ucr_01_rawimu_t rawimu;
+
+          uint16_t crc_index = SHORT_HEADER_LENGTH + RAWIMUS_LENGTH;
+          memset(&received_CRC, 0, sizeof(received_CRC));
+          memcpy(&received_CRC, received_data + crc_index, sizeof(received_CRC));
+
+          calculated_CRC = CalculateBlockCRC32(SHORT_HEADER_LENGTH + RAWIMUS_LENGTH, received_data);
+          
+          if(memcmp(&received_CRC, &calculated_CRC, sizeof(received_CRC)) != 0) {
+            // CRC mismatch
+            return;
+          }
+
+          // Skip header
+          ptr = received_data + SHORT_HEADER_LENGTH;
+
+          // Copy data
+          memcpy(&rawimu.gnss_week, ptr, sizeof(rawimu.gnss_week));
+          ptr += sizeof(rawimu.gnss_week);
+
+          memcpy(&rawimu.gnss_seconds, ptr, sizeof(rawimu.gnss_seconds));
+          ptr += sizeof(rawimu.gnss_seconds);
+
+          uint32_t imu_status;
+          memcpy(&imu_status, ptr, sizeof(imu_status));
+          static uint32_t error_ctr;
+          if(imu_status & IMU_STATUS_MASK_ERROR_ALL) {
+            // IMU sensor failure https://docs.novatel.com/OEM7/Content/SPAN_Logs/RAWIMUSX.htm#G320
+        	  error_ctr++;
+          }
+          // TODO: the status also provides bitfields for whether each accel and gyro has new data or not
+          // I don't know if this means that if it is not new they give us zero or if they just don't update the value
+          // This is probably more of a post-processing thing anyways... but leaving this note here as we have the option to add handling here
+
+          ptr += sizeof(imu_status);
+
+          memcpy(&rawimu.z_accel, ptr, sizeof(rawimu.z_accel));
+          ptr += sizeof(rawimu.z_accel);
+
+          memcpy(&rawimu.neg_y_accel, ptr, sizeof(rawimu.neg_y_accel));
+          ptr += sizeof(rawimu.neg_y_accel);
+
+          memcpy(&rawimu.x_accel, ptr, sizeof(rawimu.x_accel));
+          ptr += sizeof(rawimu.x_accel);
+
+          memcpy(&rawimu.z_gyro, ptr, sizeof(rawimu.z_gyro));
+          ptr += sizeof(rawimu.z_gyro);
+
+          memcpy(&rawimu.neg_y_gyro, ptr, sizeof(rawimu.neg_y_gyro));
+          ptr += sizeof(rawimu.neg_y_gyro);
+
+          memcpy(&rawimu.x_gyro, ptr, sizeof(rawimu.x_gyro));
+          ptr += sizeof(rawimu.x_gyro);
+
+          uint8_t rawimu_data[UCR_01_RAWIMU_LENGTH];
+          ucr_01_rawimu_pack(rawimu_data, &rawimu, UCR_01_RAWIMU_LENGTH);
+
+          if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &RawImuHeader, rawimu_data) != HAL_OK){
+            // TODO: Handle error
+          }
+          
+//          gyro_x = rawimu.z_gyro * (0.008/65536)/125;
+//          gyro_y = rawimu.neg_y_gyro * (0.008/65536)/125;
+//          gyro_z = rawimu.x_gyro * (0.008/65536)/125;
+//
+//          accel_x = rawimu.x_accel * (0.200/65536)*(9.80665 /1000)/(125);
+//          accel_y = rawimu.neg_y_accel * (0.200/65536)*(9.80665 /1000)/(125);
+//          accel_z = rawimu.z_accel * (0.200/65536)*(9.80665 /1000)/(125);
+
+
+
           break;
         default:
           // Unknown message
