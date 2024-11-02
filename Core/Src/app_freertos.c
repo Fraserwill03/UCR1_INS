@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "../Threads/process_task.h"
+#include "../User/Tasks/process_task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,6 +47,8 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
 
+osMessageQueueId_t dataQueueHandle;
+
 /* Definitions for ProcessLogTask*/
 osThreadId_t ProcessLogTaskHandle;
 const osThreadAttr_t ProcessLogTask_attributes = {
@@ -54,6 +56,7 @@ const osThreadAttr_t ProcessLogTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
   .stack_size = 128 * 4
 };
+
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;

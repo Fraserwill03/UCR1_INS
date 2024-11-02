@@ -59,9 +59,6 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 
 /* USER CODE BEGIN Private defines */
-#define MAX_RX_BUF 128
-#define CRC_LENGTH 4
-#define SHORT_HEADER_LENGTH 12
 
 /* USER CODE END Private defines */
 

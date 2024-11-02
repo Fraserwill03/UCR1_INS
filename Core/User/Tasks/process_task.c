@@ -1,5 +1,25 @@
-#include "process_task.h"
-#include "../vendor_generated/can_tools/ucr_01.h"
+/*
+ * process_task.c
+ *
+ *  Created on: Nov 2, 2024
+ *      Author: Will
+ */
+
+/**
+ * Private Includes
+ * --------------------------------------------- */
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "cmsis_os.h"
+#include "usart.h"
+#include "fdcan.h"
+#include "main.h"
+
+#include "../User/Tasks/process_task.h"
+#include "../../vendor_generated/can_tools/ucr_01.h"
 
 
 /**
@@ -19,6 +39,7 @@
 #define RAWIMUS_ID 325
 #define RAWIMUS_LENGTH 40
 
+
 /**
  * PRIVATE DEFINITIONS
  * 
@@ -34,9 +55,11 @@
  * -----------------------------------------------------------
  */
 
-osMessageQueueId_t dataQueueHandle;
+extern osMessageQueueId_t dataQueueHandle;
 
-/* CAN Message Headers Start */
+/* CAN Message Headers START
+ * -----------------------------------------
+*/
 
 // InsGpsHeader header
 FDCAN_TxHeaderTypeDef InsGpsHeader = {
@@ -64,6 +87,7 @@ FDCAN_TxHeaderTypeDef GnssImuHeader = {
   .MessageMarker = 0
 };
 
+// BESTGNSSPOS header
 FDCAN_TxHeaderTypeDef GnssBestPosHeader = {
   .Identifier = UCR_01_GNSS_BESTPOS_FRAME_ID,
   .IdType = FDCAN_STANDARD_ID,
@@ -87,6 +111,11 @@ FDCAN_TxHeaderTypeDef RawImuHeader = {
   .TxEventFifoControl = FDCAN_NO_TX_EVENTS,
   .MessageMarker = 0
 };
+
+/* CAN Message Headers END
+ * -----------------------------------------
+*/
+
 /**
  * PRIVATE FUNCTIONS
  * 
@@ -164,21 +193,17 @@ unsigned long CalculateBlockCRC32( unsigned long ulCount, unsigned char *ucBuffe
  * -----------------------------------------------------------
  */
 
-//static float gyro_x;
-//static float gyro_y;
-//static float gyro_z;
-//
-//static float accel_x;
-//static float accel_y;
-//static float accel_z;
-
 void ProcessLogTask(void * argument) {
   static uint8_t received_data[MAX_RX_BUF];
-  HAL_FDCAN_Start(&hfdcan1);
   uint32_t received_CRC;
   uint32_t calculated_CRC;
   uint32_t header_length;
   uint8_t *ptr = 0;
+
+  // Start CAN
+  HAL_FDCAN_Start(&hfdcan1);
+  // Start UART
+  start_ins_usart();
 
   while(1) {
     osStatus_t status = osMessageQueueGet(dataQueueHandle, received_data, NULL, 0);
@@ -376,16 +401,6 @@ void ProcessLogTask(void * argument) {
           if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &RawImuHeader, rawimu_data) != HAL_OK){
             // TODO: Handle error
           }
-          
-//          gyro_x = rawimu.z_gyro * (0.008/65536)/125;
-//          gyro_y = rawimu.neg_y_gyro * (0.008/65536)/125;
-//          gyro_z = rawimu.x_gyro * (0.008/65536)/125;
-//
-//          accel_x = rawimu.x_accel * (0.200/65536)*(9.80665 /1000)/(125);
-//          accel_y = rawimu.neg_y_accel * (0.200/65536)*(9.80665 /1000)/(125);
-//          accel_z = rawimu.z_accel * (0.200/65536)*(9.80665 /1000)/(125);
-
-
 
           break;
         default:
