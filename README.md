@@ -1,7 +1,7 @@
 # UCR1_INS
 This repo contains the code for the UCR-01 Inertial Navigation System (INS) project. This project runs on an STM32G474RE microcontroller that lives on the UCR-01's gnss_imu board. 
 
-The job of this project is to receive data from a Novatel OEM7600 GNSS receiver that is paired with an Epson EG320 IMU. The data is received over UART, parsed by the microncontroller, and then shipped over FDCAN to the UCR-01's CAN logger.
+The job of this project is to receive data from a Novatel OEM7600 GNSS receiver that is paired with an Epson EG320 IMU. The data is received over UART, parsed by the microcontroller, and then shipped over FDCAN to the UCR-01's CAN logger.
 
 ## TODOs:
 - We would like to receive serialized messages over the CAN bus that will configure what logs the GNSS receiver should output so we do not have to pull it out and connect over UART to configure it
